@@ -1,8 +1,10 @@
 package main
 
+// точка входа в приложение
+
 import (
 	"flag"
-	"log"
+	"fmt"
 
 	"github.com/BurntSushi/toml"
 	"github.com/smakkking/http-rest-api/internal/app/apiserver"
@@ -27,7 +29,8 @@ func main() {
 
 	s := apiserver.New(config)
 	err = s.Start()
-	if err != nil {
-		log.Fatal()
-	}
+	fmt.Print(err)
+	//if err != nil {
+	//	//log.Fatal("critical error")
+	//}
 }
