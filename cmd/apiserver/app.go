@@ -20,15 +20,12 @@ func init() {
 
 func main() {
 	flag.Parse() // вроде как парсим строка
-
 	var err error
 
 	config := apiserver.NewConfig()
+	toml.DecodeFile(configPath, config)
 
-	_, err = toml.DecodeFile(configPath, config)
-
-	s := apiserver.New(config)
-	err = s.Start()
+	err = apiserver.Start(config)
 	fmt.Print(err)
 	//if err != nil {
 	//	//log.Fatal("critical error")

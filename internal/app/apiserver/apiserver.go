@@ -1,75 +1,36 @@
 package apiserver
 
-// логика управления сервером
-
 import (
-	"io"
+	"database/sql"
 	"net/http"
 
-	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
-	"github.com/smakkking/http-rest-api/internal/app/store"
+	"github.com/smakkking/http-rest-api/internal/app/store/sqlstore"
 )
 
-type APIserver struct {
-	config *Config
-	logger *logrus.Logger
-	router *mux.Router
-	store  *store.Store
-}
+// логика управления сервером
+func Start(c *Config) error {
+	db, err := newDB(c.DataBaseUrl)
 
-// Upcase to avaiable import from another package
-func New(c *Config) *APIserver {
-	return &APIserver{
-		config: c,
-		logger: logrus.New(),
-		router: mux.NewRouter(),
-	}
-}
-
-func (a *APIserver) Start() error {
-	if err := a.configLogger(); err != nil {
-		return err
-	}
-
-	a.logger.Info("startng api server")
-	a.configRouter()
-
-	if err := a.configStore(); err != nil {
-		return err
-	}
-
-	return http.ListenAndServe(a.config.BindAddr, a.router)
-}
-
-func (s *APIserver) handlehello() http.HandlerFunc {
-	// здесь можно определять локальные переменные и делать вычисления
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "Hello")
-	}
-}
-
-func (s *APIserver) configLogger() error {
-	level, err := logrus.ParseLevel(s.config.LogLevel)
 	if err != nil {
 		return err
 	}
-	s.logger.SetLevel(level)
-	return nil
+
+	defer db.Close()
+
+	store := sqlstore.New(db)
+	s := NewServer(store)
+	return http.ListenAndServe(c.BindAddr, s)
 }
 
-func (s *APIserver) configRouter() {
-	// здесь задаем ресурсы и их обработчики
-	s.router.HandleFunc("/hello", s.handlehello())
-}
+func newDB(database_url string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", database_url)
 
-func (s *APIserver) configStore() error {
-	st := store.New(s.store)
-	if err := st.Open(); err != nil {
-		return err
+	if err != nil {
+		return nil, err
 	}
 
-	s.store = st
-	return nil
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+	return db, nil
 }
