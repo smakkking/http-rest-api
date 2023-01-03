@@ -31,6 +31,11 @@ func (u *User) Sanitize() {
 	u.Password = ""
 }
 
+// инкапсулированная логика сравнения пароля для аутентификации
+func (u *User) ComparePassword(password string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(u.EncryptedPassword), []byte(password)) == nil
+}
+
 func (u *User) Validate() error {
 	// валидация введенных данных пользователем
 	return validation.ValidateStruct(
