@@ -1,20 +1,23 @@
-package store
+package sqlstore
 
 import (
+	"database/sql"
+
 	"github.com/smakkking/http-rest-api/internal/app/model"
+	"github.com/smakkking/http-rest-api/internal/app/store"
 )
 
 type UserRepository struct {
 	store *Store
 }
 
-func (r *UserRepository) Create(u *model.User) (*model.User, error) {
+func (r *UserRepository) Create(u *model.User) error {
 	if err := u.Validate(); err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := u.BeforeCreate(); err != nil {
-		return nil, err
+		return err
 	}
 	// здесь мы создали в БД запись о новом пользователе, кроме этого в объект ORM положили его id
 	if err := r.store.db.QueryRow(
@@ -22,9 +25,9 @@ func (r *UserRepository) Create(u *model.User) (*model.User, error) {
 		u.Email,
 		u.EncryptedPassword,
 	).Scan(&u.ID); err != nil {
-		return nil, err
+		return err
 	}
-	return u, nil
+	return nil
 }
 
 func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
@@ -34,7 +37,10 @@ func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
 		"SELECT id, email, encrypted_password FROM users WHERE email=$1",
 		email,
 	).Scan(&u.ID, &u.Email, &u.EncryptedPassword); err != nil {
-		return nil, err
+		if err == sql.ErrNoRows { // специально проверяем, чтобы заменить на нашу ошибку
+			return nil, store.ErrUserNotFound
+		}
+		return nil, err // если ошибка любая другая, то просто проводим ее наверх
 	}
 
 	return u, nil

@@ -1,30 +1,31 @@
-package store_test
+package teststore_test
 
 import (
 	"testing"
 
 	"github.com/smakkking/http-rest-api/internal/app/model"
 	"github.com/smakkking/http-rest-api/internal/app/store"
+	"github.com/smakkking/http-rest-api/internal/app/store/teststore"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserRepository_Create(t *testing.T) {
-	s, teardown := store.TestStore(t, databaseUrl)
-	defer teardown("users")
+	s := teststore.New()
 
-	u, err := s.User().Create(model.TestUser(t))
+	u := model.TestUser(t)
+
+	err := s.User().Create(u)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, u)
 }
 
 func TestUserRepository_FindByEmail(t *testing.T) {
-	s, teardown := store.TestStore(t, databaseUrl)
-	defer teardown("users")
+	s := teststore.New()
 
 	// find not existed user
 	_, err := s.User().FindByEmail("user@example.com")
-	assert.Error(t, err)
+	assert.EqualError(t, err, store.ErrUserNotFound.Error())
 
 	// find existed user
 	s.User().Create(model.TestUser(t))
