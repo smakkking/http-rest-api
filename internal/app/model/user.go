@@ -9,10 +9,10 @@ import (
 // models in DB
 
 type User struct {
-	ID                int
-	Email             string
-	Password          string // virtual field
-	EncryptedPassword string
+	ID                int    `json:"id"`
+	Email             string `json:"email"`
+	Password          string `json:"password,omitempty"` // virtual field
+	EncryptedPassword string `json:"-"`                  // не будет ключа в json
 }
 
 func (u *User) BeforeCreate() error {
@@ -26,12 +26,17 @@ func (u *User) BeforeCreate() error {
 	return nil
 }
 
+// скрывает необходимые данные перед рендерингом
+func (u *User) Sanitize() {
+	u.Password = ""
+}
+
 func (u *User) Validate() error {
 	// валидация введенных данных пользователем
 	return validation.ValidateStruct(
 		u,
 		validation.Field(&u.Email, validation.Required, is.Email),
-		validation.Field(&u.Password, validation.Required, validation.Length(4, 8)), 
+		validation.Field(&u.Password, validation.Required, validation.Length(4, 8)),
 	)
 }
 
