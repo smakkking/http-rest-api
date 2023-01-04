@@ -39,3 +39,42 @@ func TestUserRepository_FindByEmail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, u2)
 }
+
+func TestUserRepository_FindByID(t *testing.T) {
+	db, teardown := sqlstore.TestDB(t, databaseUrl)
+	defer teardown("users")
+
+	s := sqlstore.New(db)
+	x := model.TestUser(t)
+	s.User().Create(x)
+
+	testCases := []struct {
+		name      string
+		id        int
+		test_func func(t *testing.T, id int)
+	}{
+		{
+			name: "find not existed user",
+			id:   124,
+			test_func: func(t *testing.T, id int) {
+				_, err := s.User().FindByID(id)
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "find existed user",
+			id:   x.ID,
+			test_func: func(t *testing.T, id int) {
+				u2, err := s.User().FindByID(id)
+				assert.NoError(t, err)
+				assert.NotNil(t, u2)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.test_func(t, tc.id)
+		})
+	}
+}

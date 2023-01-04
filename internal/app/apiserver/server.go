@@ -1,10 +1,13 @@
 package apiserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/sirupsen/logrus"
@@ -13,12 +16,18 @@ import (
 )
 
 const (
-	sessionName = "abcde"
+	sessionName        = "abcde"
+	ctxKeyUser  ctxKey = iota
+	ctxKeyRequestID
 )
 
 var (
 	errIncorectEmailOrPassword = errors.New("incorrect email or password")
+	errNotAuthenticated        = errors.New("not authenticated")
 )
+
+// специальный тип для ключей контекста
+type ctxKey int8
 
 // более легковесная реализация сервера, может только обрабатывать запросы
 type server struct {
@@ -47,9 +56,16 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // здесь расположена основная логика работы с ресурсами API
 func (s *server) configRouter() {
+	s.router.Use(handlers.CORS(handlers.AllowedOrigins([]string{"*"})))
+	s.router.Use(s.setRequestID)
+
 	s.router.HandleFunc("/users", s.handleUsersCreate()).Methods("POST")
 	s.router.HandleFunc("/sessions", s.handleSessionCreate()).Methods("POST")
 	// ...
+
+	private := s.router.PathPrefix("/private").Subrouter() // выделяем ресурсную подзону /private/**
+	private.Use(s.authenticateUser)
+	private.HandleFunc("/whoami", s.handleWhoami()).Methods("GET")
 }
 
 func (s *server) handleSessionCreate() http.HandlerFunc {
@@ -86,6 +102,12 @@ func (s *server) handleSessionCreate() http.HandlerFunc {
 		}
 
 		s.respond(w, r, http.StatusOK, nil)
+	}
+}
+
+func (s *server) handleWhoami() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.respond(w, r, http.StatusOK, r.Context().Value(ctxKeyUser).(*model.User))
 	}
 }
 
@@ -129,4 +151,41 @@ func (s *server) respond(w http.ResponseWriter, r *http.Request, status_code int
 	if data != nil {
 		json.NewEncoder(w).Encode(data)
 	}
+}
+
+// middleware для проверки, аутентифицирован ли пользователь, вызывается при каждом дергании ресурса
+func (s *server) authenticateUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, err := s.sessionStore.Get(r, sessionName) // получаем сессию пользователя
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			return
+		}
+
+		id, ok := session.Values["user_id"]
+		if !ok {
+			s.error(w, r, http.StatusUnauthorized, errNotAuthenticated)
+			return
+		}
+
+		u, err := s.store.User().FindByID(id.(int))
+		if err != nil {
+			s.error(w, r, http.StatusUnauthorized, errNotAuthenticated)
+			return
+		}
+
+		// если мы уверены, что пользователь аутентифицирован, то запускаем след обработчик,
+		// который изначально и должен был быть вызван
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser, u)))
+
+	})
+}
+
+func (s *server) setRequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := uuid.New().String()
+		w.Header().Set("X-Request-ID", id)
+
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyRequestID, id)))
+	})
 }

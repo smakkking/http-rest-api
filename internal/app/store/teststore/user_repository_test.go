@@ -34,3 +34,19 @@ func TestUserRepository_FindByEmail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, u2)
 }
+
+func TestUserRepository_FindByID(t *testing.T) {
+	s := teststore.New()
+
+	// find not existed user
+	_, err := s.User().FindByID(134235)
+	assert.EqualError(t, err, store.ErrUserNotFound.Error())
+
+	// find existed user
+	u := model.TestUser(t)
+	s.User().Create(u)
+
+	u2, err := s.User().FindByID(u.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, u2)
+}
